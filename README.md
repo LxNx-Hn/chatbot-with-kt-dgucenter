@@ -12,7 +12,7 @@
   [![React](https://img.shields.io/badge/react-18.0+-blue.svg)](https://reactjs.org)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.68+-green.svg)](https://fastapi.tiangolo.com)
   
-**🚀 [Live Demo-백엔드 비활성화](https://dgu-chat-bot.netlify.app/)** |  **📖 [Documentation Wiki] (https://github.com/LxNx-Hn/chatbot-with-kt-dgucenter/wiki/%EC%9C%84%ED%82%A4%E2%80%90%EB%AC%B8%EC%84%9C%EB%AA%A8%EC%9D%8C)**
+**🚀 [Live Demo-백엔드 비활성화](https://dgu-chat-bot.netlify.app/)** | **📖 [Documentation Wiki](https://github.com/LxNx-Hn/chatbot-with-kt-dgucenter/wiki/%EC%9C%84%ED%82%A4%E2%80%90%EB%AC%B8%EC%84%9C%EB%AA%A8%EC%9D%8C)**
 </div>
 
 ---
