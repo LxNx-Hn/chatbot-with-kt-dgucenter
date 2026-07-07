@@ -1,0 +1,78 @@
+name: Deploy Backend to Lightweight EC2
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-backend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        run: |
+          IMAGE_NAME_LOWER=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" | tr '[:upper:]' '[:lower:]')
+          docker build -t "$IMAGE_NAME_LOWER" ./DSL_CHAT_BOT/backend
+          docker push "$IMAGE_NAME_LOWER"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Validate required secrets
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          test -n "$EC2_HOST" || (echo "Missing EC2_HOST secret" && exit 1)
+          test -n "$EC2_USER" || (echo "Missing EC2_USER secret" && exit 1)
+          test -n "$EC2_SSH_KEY" || (echo "Missing EC2_SSH_KEY secret" && exit 1)
+          test -n "$NVIDIA_API_KEY" || (echo "Missing NVIDIA_API_KEY secret" && exit 1)
+
+      - name: Deploy container over SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          SERVICE_KEY: ${{ secrets.SERVICE_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NIM_MODEL: ${{ vars.NIM_MODEL || 'meta/llama-3.1-8b-instruct' }}
+        run: |
+          set -euo pipefail
+          IMAGE_NAME_LOWER=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" | tr '[:upper:]' '[:lower:]')
+          mkdir -p ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" "mkdir -p ~/dgu-chatbot"
+          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" "cat > ~/dgu-chatbot/.env" <<EOF
+          MODEL_PROVIDER=nim
+          NVIDIA_API_KEY=$NVIDIA_API_KEY
+          NIM_BASE_URL=https://integrate.api.nvidia.com/v1
+          NIM_MODEL=$NIM_MODEL
+          SERVICE_KEY=$SERVICE_KEY
+          NAVER_CLIENT_ID=$NAVER_CLIENT_ID
+          NAVER_CLIENT_SECRET=$NAVER_CLIENT_SECRET
+          EOF
+          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" "docker pull $IMAGE_NAME_LOWER && docker rm -f dgu-chatbot-backend || true && docker run -d --name dgu-chatbot-backend --restart unless-stopped --env-file ~/dgu-chatbot/.env -p 8000:8000 $IMAGE_NAME_LOWER"
