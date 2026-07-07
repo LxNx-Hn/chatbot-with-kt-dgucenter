@@ -3,6 +3,7 @@ import ChatHeader from "./ChatHeader";
 import ChatMessages from "./ChatMessages";
 import ChatInput from "./ChatInput";
 import { useTheme } from "../context/ThemeContext";
+import { getChatEndpoint } from "../config";
 
 const CATEGORY_DATA = {
   창업: {
@@ -147,14 +148,7 @@ export default function ChatBot() {
     setMessages((msgs) => [...msgs, { text: msg, isUser: true }]);
     setLoading(true);
     try {
-      // ===================================================================
-      // [Netlify Functions 사용 시] - 아래 1줄 주석 해제하고 나머지 주석 처리
-      // const endpoint = '/.netlify/functions/chat';
-      // ===================================================================
-      // [백엔드 직접 호출 시] - 아래 2줄 주석 해제 (도커, 소스코드 배포 기본값)
-      const API_URL = process.env.REACT_APP_API_URL;
-      const endpoint = `${API_URL}/api/chat`;
-      // ===================================================================
+      const endpoint = getChatEndpoint();
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -171,9 +165,13 @@ export default function ChatBot() {
         { text: data.reply || "알 수 없는 오류가 발생했습니다.", isUser: false },
       ]);
     } catch (e) {
+      const errorMessage =
+        e.message === "API_URL_NOT_CONFIGURED"
+          ? "배포된 데모에 백엔드 API URL이 아직 설정되지 않았습니다. GitHub 저장소 변수 REACT_APP_API_URL 또는 public/config.js의 API_URL을 설정해 주세요."
+          : "서버와 연결할 수 없습니다.";
       setMessages((msgs) => [
         ...msgs,
-        { text: "서버와 연결할 수 없습니다.", isUser: false },
+        { text: errorMessage, isUser: false },
       ]);
     }
     setLoading(false);

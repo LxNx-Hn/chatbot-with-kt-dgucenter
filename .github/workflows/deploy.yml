@@ -110,7 +110,10 @@ jobs:
                 \"containerDiskInGb\": 20,
                 \"ports\": [\"8000/http\"],
                 \"env\": {
-                  \"NVIDIA_VISIBLE_DEVICES\": \"all\",
+                  \"MODEL_PROVIDER\": \"nim\",
+                  \"NVIDIA_API_KEY\": \"${{ secrets.NVIDIA_API_KEY }}\",
+                  \"NIM_BASE_URL\": \"https://integrate.api.nvidia.com/v1\",
+                  \"NIM_MODEL\": \"${{ vars.NIM_MODEL || 'meta/llama-3.1-8b-instruct' }}\",
                   \"SERVICE_KEY\": \"${{ secrets.SERVICE_KEY }}\",
                   \"NAVER_CLIENT_ID\": \"${{ secrets.NAVER_CLIENT_ID }}\",
                   \"NAVER_CLIENT_SECRET\": \"${{ secrets.NAVER_CLIENT_SECRET }}\"

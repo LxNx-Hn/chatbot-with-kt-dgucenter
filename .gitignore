@@ -50,6 +50,9 @@ logs/
 
 # Cache
 .cache
+node_modules/
+**/node_modules/
+DSL_CHAT_BOT/frontend/build/
 
 # IDE
 .vscode/
