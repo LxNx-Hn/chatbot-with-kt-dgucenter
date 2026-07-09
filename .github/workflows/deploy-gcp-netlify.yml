@@ -52,7 +52,7 @@ jobs:
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Resolve deployment names
+      - name: Resolve deployment target
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           REGION_INPUT: ${{ inputs.region }}
@@ -66,11 +66,9 @@ jobs:
           fi
 
           PROJECT_ID="$(python -c 'import json, os; print(json.loads(os.environ["GCP_SERVICE_ACCOUNT_KEY"])["project_id"])')"
-          PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
           IMAGE="${REGION_INPUT}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO_INPUT}/${SERVICE_NAME_INPUT}:${GITHUB_SHA}"
 
           echo "PROJECT_ID=${PROJECT_ID}" >> "${GITHUB_ENV}"
-          echo "PROJECT_NUMBER=${PROJECT_NUMBER}" >> "${GITHUB_ENV}"
           echo "REGION=${REGION_INPUT}" >> "${GITHUB_ENV}"
           echo "SERVICE_NAME=${SERVICE_NAME_INPUT}" >> "${GITHUB_ENV}"
           echo "ARTIFACT_REPO=${ARTIFACT_REPO_INPUT}" >> "${GITHUB_ENV}"
@@ -87,6 +85,12 @@ jobs:
             cloudresourcemanager.googleapis.com \
             compute.googleapis.com \
             --project "${PROJECT_ID}"
+
+      - name: Resolve project number
+        run: |
+          set -euo pipefail
+          PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+          echo "PROJECT_NUMBER=${PROJECT_NUMBER}" >> "${GITHUB_ENV}"
 
       - name: Ensure Artifact Registry repository
         run: |
