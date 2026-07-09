@@ -25,6 +25,11 @@ on:
         required: true
         type: boolean
         default: false
+      enable_gcp_apis:
+        description: "Enable required GCP APIs before deployment"
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -75,6 +80,7 @@ jobs:
           echo "IMAGE=${IMAGE}" >> "${GITHUB_ENV}"
 
       - name: Enable required GCP APIs
+        if: ${{ inputs.enable_gcp_apis }}
         run: |
           set -euo pipefail
           gcloud services enable \
