@@ -75,6 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           gcloud services enable \
+            serviceusage.googleapis.com \
             run.googleapis.com \
             artifactregistry.googleapis.com \
             secretmanager.googleapis.com \

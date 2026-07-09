@@ -46,6 +46,10 @@
 
 기본 배포 방식은 서비스 계정 JSON 키를 사용한다. 조직정책 때문에 JSON 키 생성이 막히는 경우에는 `ops/docs/GCP_Workload_Identity_Federation_설정.md`를 따라 키 없는 인증으로 전환할 수 있다.
 
+처음 만든 프로젝트에서는 `Service Usage API`가 꺼져 있을 수 있다. 이 API가 꺼져 있으면 배포 워크플로우가 다른 API를 자동 활성화하지 못한다. 최초 1회 아래 링크에서 `Service Usage API`를 직접 사용 설정한다.
+
+- https://console.developers.google.com/apis/api/serviceusage.googleapis.com/overview?project=distinguished-cinema-h3bf2
+
 ## GCP 서비스 계정 권한
 
 `GCP_SERVICE_ACCOUNT_KEY`에 들어 있는 서비스 계정에는 다음 역할이 필요하다.
@@ -55,7 +59,7 @@
 | `roles/run.admin` | Cloud Run 서비스 배포 |
 | `roles/artifactregistry.admin` | Docker 저장소 생성 및 이미지 푸시 |
 | `roles/secretmanager.admin` | Secret Manager 시크릿 생성/갱신 |
-| `roles/serviceusage.serviceUsageAdmin` | Cloud Run, Artifact Registry, Secret Manager 등 필요한 GCP API 활성화 |
+| `roles/serviceusage.serviceUsageAdmin` | Service Usage, Cloud Run, Artifact Registry, Secret Manager 등 필요한 GCP API 활성화 |
 | `roles/iam.serviceAccountUser` | Cloud Run 런타임 서비스 계정 사용 |
 | `roles/resourcemanager.projectIamAdmin` | 런타임 서비스 계정에 Secret Accessor 권한 부여 |
 
