@@ -30,17 +30,24 @@
 
 ## 필요한 GitHub Secrets
 
-아래 값만 채우면 워크플로우를 실행할 수 있다.
+아래 값만 채우면 핵심 게이트웨이 배포 워크플로우를 실행할 수 있다.
 
 | 이름 | 용도 |
 | --- | --- |
 | `GCP_SERVICE_ACCOUNT_KEY` | GCP 서비스 계정 JSON 키 전체 |
 | `NVIDIA_API_KEY` | NVIDIA NIM API 호출 키 |
 | `SERVICE_KEY` | 공공데이터/정책 API 서비스 키 |
-| `NAVER_CLIENT_ID` | 네이버 데이터랩 Client ID |
-| `NAVER_CLIENT_SECRET` | 네이버 데이터랩 Client Secret |
 | `NETLIFY_AUTH_TOKEN` | Netlify CLI 배포 토큰 |
 | `NETLIFY_SITE_ID` | 기존 Netlify 사이트 ID |
+
+선택 값:
+
+| 이름 | 용도 |
+| --- | --- |
+| `NAVER_CLIENT_ID` | 트렌드 분석 카테고리를 켤 때만 필요한 네이버 데이터랩 Client ID |
+| `NAVER_CLIENT_SECRET` | 트렌드 분석 카테고리를 켤 때만 필요한 네이버 데이터랩 Client Secret |
+
+네이버 키가 없으면 핵심 창업/정책 상담과 NIM 게이트웨이 배포는 유지된다. 다만 `trend` 카테고리를 호출하면 명시적인 설정 오류가 반환된다.
 
 ## GCP 서비스 계정 권한
 
@@ -97,4 +104,5 @@ Cloud Run은 다음 값으로 배포된다.
 - Cloud Run은 `min-instances=0`이라 첫 요청에서 콜드스타트가 생길 수 있다.
 - `keyword` 검색은 가볍지만, 기존 `sentence-transformers` 검색보다 의미 유사도 품질은 낮을 수 있다.
 - GitHub Secrets와 GCP Secret Manager에 같은 키가 저장되므로 키 교체 시 워크플로우를 다시 실행해야 한다.
+- 네이버 데이터랩 키를 넣지 않으면 트렌드 분석 카테고리는 비활성 상태로 남는다.
 - Netlify 사이트가 기존 GitHub 자동 배포와 연결되어 있으면, Netlify UI의 자동 배포 설정과 GitHub Actions 배포가 충돌하지 않는지 확인해야 한다.

@@ -97,7 +97,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          upsert_secret() {
+          upsert_required_secret() {
             local name="$1"
             local value="$2"
 
@@ -117,10 +117,39 @@ jobs:
               --project "${PROJECT_ID}" >/dev/null
           }
 
-          upsert_secret "NVIDIA_API_KEY" "${NVIDIA_API_KEY}"
-          upsert_secret "SERVICE_KEY" "${SERVICE_KEY}"
-          upsert_secret "NAVER_CLIENT_ID" "${NAVER_CLIENT_ID}"
-          upsert_secret "NAVER_CLIENT_SECRET" "${NAVER_CLIENT_SECRET}"
+          upsert_optional_secret() {
+            local name="$1"
+            local value="$2"
+
+            if ! gcloud secrets describe "${name}" --project "${PROJECT_ID}" >/dev/null 2>&1; then
+              gcloud secrets create "${name}" \
+                --replication-policy=automatic \
+                --project "${PROJECT_ID}"
+            fi
+
+            printf "%s" "${value}" | gcloud secrets versions add "${name}" \
+              --data-file=- \
+              --project "${PROJECT_ID}" >/dev/null
+          }
+
+          upsert_required_secret "NVIDIA_API_KEY" "${NVIDIA_API_KEY}"
+          upsert_required_secret "SERVICE_KEY" "${SERVICE_KEY}"
+
+          CLOUD_RUN_SECRET_MOUNTS="NVIDIA_API_KEY=NVIDIA_API_KEY:latest,SERVICE_KEY=SERVICE_KEY:latest"
+          if [ -n "${NAVER_CLIENT_ID}" ] || [ -n "${NAVER_CLIENT_SECRET}" ]; then
+            if [ -z "${NAVER_CLIENT_ID}" ] || [ -z "${NAVER_CLIENT_SECRET}" ]; then
+              echo "::error ::NAVER_CLIENT_ID and NAVER_CLIENT_SECRET must be provided together when enabling trend analysis."
+              exit 1
+            fi
+
+            upsert_optional_secret "NAVER_CLIENT_ID" "${NAVER_CLIENT_ID}"
+            upsert_optional_secret "NAVER_CLIENT_SECRET" "${NAVER_CLIENT_SECRET}"
+            CLOUD_RUN_SECRET_MOUNTS="${CLOUD_RUN_SECRET_MOUNTS},NAVER_CLIENT_ID=NAVER_CLIENT_ID:latest,NAVER_CLIENT_SECRET=NAVER_CLIENT_SECRET:latest"
+          else
+            echo "Naver DataLab secrets were not provided. Trend analysis will return an explicit configuration error if used."
+          fi
+
+          echo "CLOUD_RUN_SECRET_MOUNTS=${CLOUD_RUN_SECRET_MOUNTS}" >> "${GITHUB_ENV}"
 
       - name: Grant Cloud Run runtime access to secrets
         run: |
@@ -156,7 +185,7 @@ jobs:
             --max-instances 2 \
             --timeout 120 \
             --set-env-vars "^|^MODEL_PROVIDER=nim|RETRIEVAL_PROVIDER=keyword|NIM_BASE_URL=${NIM_BASE_URL}|NIM_MODEL=${NIM_MODEL}|KEYWORD_EMBEDDING_DIMENSIONS=512|CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS}" \
-            --set-secrets "NVIDIA_API_KEY=NVIDIA_API_KEY:latest,SERVICE_KEY=SERVICE_KEY:latest,NAVER_CLIENT_ID=NAVER_CLIENT_ID:latest,NAVER_CLIENT_SECRET=NAVER_CLIENT_SECRET:latest" \
+            --set-secrets "${CLOUD_RUN_SECRET_MOUNTS}" \
             --project "${PROJECT_ID}"
 
           SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \

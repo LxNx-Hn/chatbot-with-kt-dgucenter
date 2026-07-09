@@ -1,9 +1,8 @@
 import requests
 import json
-import numpy as np
 from datetime import datetime, timedelta
 from models.embedding_model import embedding_instance
-from models.llm_model import llm_instance
+from models.llm_model import MissingModelConfigurationError, llm_instance
 from config.settings import NAVER_DATALAB_CONFIG
 
 class TrendService:
@@ -30,6 +29,11 @@ class TrendService:
 
     def _fetch_trend_data(self, keywords):
         """네이버 데이터랩 API 호출"""
+        if not self.client_id or not self.client_secret:
+            raise MissingModelConfigurationError(
+                "트렌드 분석에는 NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET 환경변수가 필요합니다."
+            )
+
         end_date = datetime.now().strftime("%Y-%m-%d")
         start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
         
@@ -47,7 +51,8 @@ class TrendService:
             "keywordGroups": keyword_groups
         }
         
-        response = requests.post(self.api_url, headers=headers, data=json.dumps(body))
+        response = requests.post(self.api_url, headers=headers, data=json.dumps(body), timeout=10)
+        response.raise_for_status()
         return response.json()
 
     def _convert_to_text(self, keywords, trend_data):
