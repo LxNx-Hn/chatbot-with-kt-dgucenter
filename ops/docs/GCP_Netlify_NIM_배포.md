@@ -19,7 +19,7 @@
 
 워크플로우가 수행하는 일:
 
-1. GCP 서비스 계정으로 인증한다.
+1. GitHub OIDC와 GCP Workload Identity Federation으로 키 없이 인증한다.
 2. 필요한 GCP API를 활성화한다.
 3. Artifact Registry 저장소를 생성하거나 재사용한다.
 4. GitHub Secrets 값을 GCP Secret Manager에 생성/갱신한다.
@@ -34,7 +34,9 @@
 
 | 이름 | 용도 |
 | --- | --- |
-| `GCP_SERVICE_ACCOUNT_KEY` | GCP 서비스 계정 JSON 키 전체 |
+| `GCP_PROJECT_ID` | 배포 대상 GCP 프로젝트 ID |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | GitHub Actions OIDC를 신뢰하는 Workload Identity Provider 리소스 이름 |
+| `GCP_SERVICE_ACCOUNT_EMAIL` | GitHub Actions가 가장할 GCP 서비스 계정 이메일 |
 | `NVIDIA_API_KEY` | NVIDIA NIM API 호출 키 |
 | `SERVICE_KEY` | 공공데이터/정책 API 서비스 키 |
 | `NAVER_CLIENT_ID` | 트렌드 분석용 네이버 데이터랩 Client ID |
@@ -42,9 +44,27 @@
 | `NETLIFY_AUTH_TOKEN` | Netlify CLI 배포 토큰 |
 | `NETLIFY_SITE_ID` | 기존 Netlify 사이트 ID |
 
+## GCP 키 없는 인증 설정
+
+조직정책으로 서비스 계정 JSON 키 생성이 막힌 경우, 장기 키를 만들지 않고 Workload Identity Federation을 사용한다.
+
+공식 문서:
+
+- https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines
+- https://docs.github.com/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-google-cloud-platform
+- https://github.com/google-github-actions/auth
+
+GitHub Secrets에는 JSON 키 대신 다음 3개를 등록한다.
+
+| 이름 | 예시 |
+| --- | --- |
+| `GCP_PROJECT_ID` | `my-gcp-project` |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/123456789/locations/global/workloadIdentityPools/github-actions/providers/github` |
+| `GCP_SERVICE_ACCOUNT_EMAIL` | `dgu-github-deployer@my-gcp-project.iam.gserviceaccount.com` |
+
 ## GCP 서비스 계정 권한
 
-`GCP_SERVICE_ACCOUNT_KEY`의 서비스 계정에는 다음 역할이 필요하다.
+`GCP_SERVICE_ACCOUNT_EMAIL`의 서비스 계정에는 다음 역할이 필요하다.
 
 | 역할 | 필요한 이유 |
 | --- | --- |

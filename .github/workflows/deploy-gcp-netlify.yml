@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 env:
   BACKEND_DIR: DSL_CHAT_BOT/backend
@@ -42,20 +43,27 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
       - name: Resolve deployment names
         env:
-          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          PROJECT_ID_INPUT: ${{ secrets.GCP_PROJECT_ID }}
           REGION_INPUT: ${{ inputs.region }}
           SERVICE_NAME_INPUT: ${{ inputs.service_name }}
           ARTIFACT_REPO_INPUT: ${{ inputs.artifact_repo }}
         run: |
           set -euo pipefail
-          PROJECT_ID="$(python -c 'import json, os; print(json.loads(os.environ["GCP_SERVICE_ACCOUNT_KEY"])["project_id"])')"
+          if [ -z "${PROJECT_ID_INPUT}" ]; then
+            echo "::error ::GCP_PROJECT_ID GitHub secret is required."
+            exit 1
+          fi
+
+          PROJECT_ID="${PROJECT_ID_INPUT}"
           PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
           IMAGE="${REGION_INPUT}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO_INPUT}/${SERVICE_NAME_INPUT}:${GITHUB_SHA}"
 
