@@ -283,6 +283,7 @@ jobs:
 
           npx --yes netlify-cli deploy \
             --prod \
+            --no-build \
             --dir build \
             --functions netlify/functions \
             --site "${NETLIFY_SITE_ID}" \
