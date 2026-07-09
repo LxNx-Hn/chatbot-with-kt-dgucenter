@@ -205,7 +205,7 @@ jobs:
             --cpu 1
             --memory 512Mi
             --min-instances 0
-            --max-instances 1
+            --max-instances 2
             --timeout 120
             --project "${PROJECT_ID}"
           )
