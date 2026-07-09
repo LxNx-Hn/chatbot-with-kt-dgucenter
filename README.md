@@ -12,7 +12,8 @@
   [![React](https://img.shields.io/badge/react-18.0+-blue.svg)](https://reactjs.org)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.68+-green.svg)](https://fastapi.tiangolo.com)
   
-<!-- **🚀 [Live Demo-백엔드 비활성화](https://dgu-chat-bot.netlify.app/)** | -->
+**🚀 [Live Demo](https://dgu-chat-bot.netlify.app/)** |
+**🪞 [GitHub Pages Mirror](https://lxnx-hn.github.io/chatbot-with-kt-dgucenter/)**
 **📖 [Documentation Wiki](https://github.com/LxNx-Hn/chatbot-with-kt-dgucenter/wiki/%EC%9C%84%ED%82%A4%E2%80%90%EB%AC%B8%EC%84%9C%EB%AA%A8%EC%9D%8C)**
 </div>
 
@@ -313,9 +314,10 @@ chatbot-with-kt-dgucenter/
 ### 🔄 자동 배포 파이프라인
 GitHub Actions 기반의 완전 자동화된 빌드 및 배포 시스템을 구축했습니다.
 
-- **태그 기반 배포**: `v*` 태그 푸시 시 자동 빌드/배포 실행
-- **멀티 플랫폼 지원**: 백엔드(RunPod), 프론트엔드(Netlify) 동시 배포
-- **컨테이너 이미지 관리**: GitHub Container Registry(GHCR) 활용
+- **권장 배포**: 수동 GitHub Actions 실행으로 GCP Cloud Run 백엔드와 Netlify 프론트엔드 동시 배포
+- **경량 게이트웨이**: 백엔드는 GPU 서버가 아니라 NVIDIA NIM을 호출하는 FastAPI 게이트웨이로 운영
+- **컨테이너 이미지 관리**: Google Artifact Registry 활용
+- **보조 배포**: GitHub Pages는 정적 미러/백업 용도로 유지
 - **환경별 배포**: Production/Development 환경 분리
 
 ### 📦 배포 환경
@@ -330,9 +332,9 @@ GitHub Actions 기반의 완전 자동화된 빌드 및 배포 시스템을 구�
     </tr>
     <tr>
       <td><b>Backend</b></td>
-      <td>RunPod</td>
-      <td>GPU 지원 LLM 서비스</td>
-      <td>자동 스케일링, 비용 최적화</td>
+      <td>GCP Cloud Run</td>
+      <td>NVIDIA NIM 호출 게이트웨이</td>
+      <td>scale-to-zero, GPU 서버 미운영</td>
     </tr>
     <tr>
       <td><b>Frontend</b></td>
@@ -342,16 +344,18 @@ GitHub Actions 기반의 완전 자동화된 빌드 및 배포 시스템을 구�
     </tr>
     <tr>
       <td><b>Container Images</b></td>
-      <td>GitHub Container Registry</td>
+      <td>Google Artifact Registry</td>
       <td>Docker 이미지 저장소</td>
-      <td>공개 이미지, 버전 관리</td>
+      <td>Cloud Run 배포 이미지 관리</td>
     </tr>
   </table>
 </div>
 
 ### 🛠️ CI/CD 워크플로우
 
-**📋 [GitHub Actions 워크플로우 코드](https://github.com/LxNx-Hn/chatbot-with-kt-dgucenter/blob/main/.github/workflows/deploy.yml)** - 전체 빌드/배포 자동화 스크립트
+**📋 [GCP + Netlify 배포 워크플로우](https://github.com/LxNx-Hn/chatbot-with-kt-dgucenter/blob/main/.github/workflows/deploy-gcp-netlify.yml)** - 경량 백엔드/프론트 전체 배포 스크립트
+
+**📋 [기존 RunPod 태그 배포 워크플로우](https://github.com/LxNx-Hn/chatbot-with-kt-dgucenter/blob/main/.github/workflows/deploy.yml)** - 기존 운영 방식 보존용
 
 **📖 [CI/CD 가이드문서](https://github.com/LxNx-Hn/chatbot-with-kt-dgucenter/wiki/CI-CD-%EA%B0%80%EC%9D%B4%EB%93%9C%EB%AC%B8%EC%84%9C)** - 워크플로우 설정, 사용방법 ,트러블슈팅 포함
 
@@ -359,26 +363,25 @@ GitHub Actions 기반의 완전 자동화된 빌드 및 배포 시스템을 구�
 <summary><b>🔧 워크플로우 주요 단계</b></summary>
 
 1. **코드 체크아웃** - 최신 소스코드 가져오기
-2. **Docker 이미지 빌드** - 백엔드/프론트엔드 컨테이너 빌드
-3. **GHCR 푸시** - 빌드된 이미지 레지스트리에 업로드
-4. **RunPod 배포** - 백엔드 API 자동 배포
-5. **Netlify 배포** - 프론트엔드 자동 배포 (병렬 처리)
+2. **GCP Secret Manager 갱신** - GitHub Secrets의 API 키를 GCP Secret Manager에 반영
+3. **경량 Docker 이미지 빌드** - NIM 배포용 `requirements.nim.txt` 기반 백엔드 이미지 빌드
+4. **Cloud Run 배포** - FastAPI 게이트웨이 배포 및 `/health` 검증
+5. **Netlify 배포** - Cloud Run URL을 런타임 설정으로 주입한 React 앱 배포
 
 **🎯 특징:**
 
-- 주석 기반 유연한 배포 설정 (다양한 플랫폼 지원 준비)
+- GPU 서버 없이 NIM API를 호출하는 애드온형 배포 구조
 - 환경변수 보안 관리 (GitHub Secrets 활용)
-- 실패 시 자동 롤백 지원
+- Cloud Run `min-instances=0` 설정으로 저비용 운영
 
 </details>
 
 ### 🔗 배포된 서비스 및 이미지
 
-- **🌐 프론트엔드**: [Netlify 서비스](https://your-app.netlify.app)
-- **⚙️ 백엔드 API**: [RunPod 서비스](https://your-api.runpod.io)
-- **🐳 Docker 이미지**: 
-- Backend: [`ghcr.io/lxnx-hn/chatbot-with-kt-dgucenter-backend:latest`](https://github.com/LxNx-Hn/chatbot-with-kt-dgucenter/pkgs/container/chatbot-with-kt-dgucenter-backend)
-- Frontend: [`ghcr.io/lxnx-hn/chatbot-with-kt-dgucenter-frontend:latest`](https://github.com/LxNx-Hn/chatbot-with-kt-dgucenter/pkgs/container/chatbot-with-kt-dgucenter-frontend)
+- **🌐 프론트엔드**: [Netlify 서비스](https://dgu-chat-bot.netlify.app/)
+- **🪞 정적 미러**: [GitHub Pages](https://lxnx-hn.github.io/chatbot-with-kt-dgucenter/)
+- **⚙️ 백엔드 API**: GCP Cloud Run 서비스 URL은 배포 워크플로우 실행 후 출력됩니다.
+- **🐳 Docker 이미지**: Google Artifact Registry의 `dgu-chatbot/dgu-nim-gateway` 저장소에 저장됩니다.
 
 ## 👨‍💻 팀원별 상세 업무
 

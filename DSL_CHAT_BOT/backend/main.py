@@ -12,15 +12,15 @@ from rag_llm import (
     CATEGORY_POLICY,
     CATEGORY_TREND,
 )
-from config.settings import MODEL_PROVIDER, NIM_MODEL
+from config.settings import CORS_ALLOW_ORIGINS, MODEL_PROVIDER, NIM_MODEL, RETRIEVAL_PROVIDER
 from models.llm_model import MissingModelConfigurationError
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -71,6 +71,7 @@ async def health():
         "status": "ok",
         "model_provider": MODEL_PROVIDER,
         "nim_model": NIM_MODEL if MODEL_PROVIDER == "nim" else None,
+        "retrieval_provider": RETRIEVAL_PROVIDER,
     }
 
 if __name__ == "__main__":

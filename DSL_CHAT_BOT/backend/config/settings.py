@@ -15,6 +15,21 @@ NIM_BASE_URL = os.getenv('NIM_BASE_URL', 'https://integrate.api.nvidia.com/v1').
 NIM_MODEL = os.getenv('NIM_MODEL', DEFAULT_NIM_MODEL)
 NIM_TIMEOUT_SECONDS = float(os.getenv('NIM_TIMEOUT_SECONDS', '60'))
 
+# 검색/임베딩 provider 설정
+RETRIEVAL_PROVIDER = os.getenv('RETRIEVAL_PROVIDER', 'embedding').strip().lower()
+KEYWORD_EMBEDDING_DIMENSIONS = int(os.getenv('KEYWORD_EMBEDDING_DIMENSIONS', '512'))
+
+# CORS 설정
+DEFAULT_CORS_ALLOW_ORIGINS = (
+    'https://dgu-chat-bot.netlify.app',
+    'https://lxnx-hn.github.io',
+)
+CORS_ALLOW_ORIGINS = [
+    origin.strip().rstrip('/')
+    for origin in os.getenv('CORS_ALLOW_ORIGINS', ','.join(DEFAULT_CORS_ALLOW_ORIGINS)).split(',')
+    if origin.strip()
+]
+
 # API URL 설정
 POLICY_API_URLS = {
     'url1': 'https://api.odcloud.kr/api/15132761/v1/uddi:181018f4-37d5-4500-b23f-9f9f2a840bc3',

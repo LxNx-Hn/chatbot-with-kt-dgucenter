@@ -48,12 +48,7 @@ jobs:
         working-directory: DSL_CHAT_BOT/frontend
         env:
           REACT_APP_API_URL: ${{ vars.REACT_APP_API_URL }}
-        run: |
-          cat > build/config.js <<EOF
-          window.DGU_CHATBOT_CONFIG = {
-            API_URL: "${REACT_APP_API_URL}"
-          };
-          EOF
+        run: npm run write-runtime-config
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

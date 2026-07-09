@@ -43,17 +43,17 @@ class StartupService:
                 show_progress_bar=True
             )
             
-            print("✔️ 임베딩 생성 완료")
+            print("임베딩 생성 완료")
             
         except Exception as e:
-            print(f"❌ 데이터 로드 오류: {e}")
+            print(f"데이터 로드 오류: {e}")
             # 폴백: 통계 데이터만 로드 + 안전한 임베딩 생성
             try:
                 df_stats = pd.read_csv(DATA_PATHS['startup_data'], encoding="utf-8")
                 self.stats_corpus = [self.text_processor.row_to_text(row) for _, row in df_stats.iterrows()]
                 self.biz_corpus = []
                 
-                # 🔥 중요: 폴백에서도 임베딩 생성
+                # 폴백에서도 임베딩 생성
                 print("폴백: 통계 데이터 임베딩 생성 중...")
                 self.stats_embeds = self.embedder.encode(
                     self.stats_corpus, 
@@ -61,10 +61,10 @@ class StartupService:
                     show_progress_bar=True
                 )
                 self.biz_embeds = np.array([])  # 빈 배열로 초기화
-                print("✔️ 폴백 임베딩 완료")
+                print("폴백 임베딩 완료")
                 
             except Exception as fallback_e:
-                print(f"❌ 폴백 로드도 실패: {fallback_e}")
+                print(f"폴백 로드도 실패: {fallback_e}")
                 # 최후의 수단: 빈 데이터로 초기화
                 self.stats_corpus = []
                 self.biz_corpus = []
@@ -239,14 +239,14 @@ class StartupService:
         
         # 1. 통계 데이터 검색 (상위 5개)
         stats_results = []
-        if len(self.stats_embeds) > 0:  # 🔥 안전 검사 추가
+        if len(self.stats_embeds) > 0:  # 안전 검사
             stats_sims = np.dot(self.stats_embeds, q_emb)
             stats_ids = stats_sims.argsort()[-topk_stats:][::-1]
             stats_results = [self.stats_corpus[i] for i in stats_ids]
         
         # 2. 사업장 데이터 검색 (데이터 존재시)
         biz_results = []
-        if len(self.biz_embeds) > 0:  # 🔥 임베딩 존재 여부 확인
+        if len(self.biz_embeds) > 0:  # 임베딩 존재 여부 확인
             biz_sims = np.dot(self.biz_embeds, q_emb)
             biz_ids = biz_sims.argsort()[-topk_biz:][::-1]
             biz_results = [self.biz_corpus[i] for i in biz_ids]

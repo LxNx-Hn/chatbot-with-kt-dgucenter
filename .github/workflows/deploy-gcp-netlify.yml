@@ -1,0 +1,213 @@
+name: Deploy GCP Cloud Run and Netlify
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "GCP region"
+        required: true
+        default: "asia-northeast3"
+      service_name:
+        description: "Cloud Run service name"
+        required: true
+        default: "dgu-nim-gateway"
+      artifact_repo:
+        description: "Artifact Registry repository name"
+        required: true
+        default: "dgu-chatbot"
+      deploy_netlify:
+        description: "Deploy frontend to Netlify after Cloud Run"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  BACKEND_DIR: DSL_CHAT_BOT/backend
+  FRONTEND_DIR: DSL_CHAT_BOT/frontend
+  NIM_BASE_URL: https://integrate.api.nvidia.com/v1
+  NIM_MODEL: meta/llama-3.1-8b-instruct
+  CORS_ALLOW_ORIGINS: https://dgu-chat-bot.netlify.app,https://lxnx-hn.github.io
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Resolve deployment names
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          REGION_INPUT: ${{ inputs.region }}
+          SERVICE_NAME_INPUT: ${{ inputs.service_name }}
+          ARTIFACT_REPO_INPUT: ${{ inputs.artifact_repo }}
+        run: |
+          set -euo pipefail
+          PROJECT_ID="$(python -c 'import json, os; print(json.loads(os.environ["GCP_SERVICE_ACCOUNT_KEY"])["project_id"])')"
+          PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+          IMAGE="${REGION_INPUT}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO_INPUT}/${SERVICE_NAME_INPUT}:${GITHUB_SHA}"
+
+          echo "PROJECT_ID=${PROJECT_ID}" >> "${GITHUB_ENV}"
+          echo "PROJECT_NUMBER=${PROJECT_NUMBER}" >> "${GITHUB_ENV}"
+          echo "REGION=${REGION_INPUT}" >> "${GITHUB_ENV}"
+          echo "SERVICE_NAME=${SERVICE_NAME_INPUT}" >> "${GITHUB_ENV}"
+          echo "ARTIFACT_REPO=${ARTIFACT_REPO_INPUT}" >> "${GITHUB_ENV}"
+          echo "IMAGE=${IMAGE}" >> "${GITHUB_ENV}"
+
+      - name: Enable required GCP APIs
+        run: |
+          set -euo pipefail
+          gcloud services enable \
+            run.googleapis.com \
+            artifactregistry.googleapis.com \
+            secretmanager.googleapis.com \
+            cloudresourcemanager.googleapis.com \
+            compute.googleapis.com \
+            --project "${PROJECT_ID}"
+
+      - name: Ensure Artifact Registry repository
+        run: |
+          set -euo pipefail
+          if ! gcloud artifacts repositories describe "${ARTIFACT_REPO}" --location "${REGION}" --project "${PROJECT_ID}" >/dev/null 2>&1; then
+            gcloud artifacts repositories create "${ARTIFACT_REPO}" \
+              --repository-format=docker \
+              --location "${REGION}" \
+              --description "DGU chatbot lightweight Cloud Run images" \
+              --project "${PROJECT_ID}"
+          fi
+
+      - name: Upsert Secret Manager values
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          SERVICE_KEY: ${{ secrets.SERVICE_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+
+          upsert_secret() {
+            local name="$1"
+            local value="$2"
+
+            if [ -z "${value}" ]; then
+              echo "::error ::GitHub secret ${name} is required."
+              exit 1
+            fi
+
+            if ! gcloud secrets describe "${name}" --project "${PROJECT_ID}" >/dev/null 2>&1; then
+              gcloud secrets create "${name}" \
+                --replication-policy=automatic \
+                --project "${PROJECT_ID}"
+            fi
+
+            printf "%s" "${value}" | gcloud secrets versions add "${name}" \
+              --data-file=- \
+              --project "${PROJECT_ID}" >/dev/null
+          }
+
+          upsert_secret "NVIDIA_API_KEY" "${NVIDIA_API_KEY}"
+          upsert_secret "SERVICE_KEY" "${SERVICE_KEY}"
+          upsert_secret "NAVER_CLIENT_ID" "${NAVER_CLIENT_ID}"
+          upsert_secret "NAVER_CLIENT_SECRET" "${NAVER_CLIENT_SECRET}"
+
+      - name: Grant Cloud Run runtime access to secrets
+        run: |
+          set -euo pipefail
+          RUNTIME_SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+          gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+            --member "serviceAccount:${RUNTIME_SERVICE_ACCOUNT}" \
+            --role "roles/secretmanager.secretAccessor" \
+            --quiet >/dev/null
+
+      - name: Build and push backend image
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build \
+            --build-arg REQUIREMENTS_FILE=requirements.nim.txt \
+            --tag "${IMAGE}" \
+            "${BACKEND_DIR}"
+          docker push "${IMAGE}"
+
+      - name: Deploy Cloud Run gateway
+        run: |
+          set -euo pipefail
+          gcloud run deploy "${SERVICE_NAME}" \
+            --image "${IMAGE}" \
+            --region "${REGION}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8000 \
+            --cpu 1 \
+            --memory 512Mi \
+            --min-instances 0 \
+            --max-instances 2 \
+            --timeout 120 \
+            --set-env-vars "^|^MODEL_PROVIDER=nim|RETRIEVAL_PROVIDER=keyword|NIM_BASE_URL=${NIM_BASE_URL}|NIM_MODEL=${NIM_MODEL}|KEYWORD_EMBEDDING_DIMENSIONS=512|CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS}" \
+            --set-secrets "NVIDIA_API_KEY=NVIDIA_API_KEY:latest,SERVICE_KEY=SERVICE_KEY:latest,NAVER_CLIENT_ID=NAVER_CLIENT_ID:latest,NAVER_CLIENT_SECRET=NAVER_CLIENT_SECRET:latest" \
+            --project "${PROJECT_ID}"
+
+          SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \
+            --region "${REGION}" \
+            --project "${PROJECT_ID}" \
+            --format='value(status.url)')"
+          echo "SERVICE_URL=${SERVICE_URL}" >> "${GITHUB_ENV}"
+          echo "Cloud Run URL: ${SERVICE_URL}"
+
+      - name: Verify Cloud Run health endpoint
+        run: |
+          set -euo pipefail
+          curl --retry 5 --retry-all-errors --retry-delay 5 --fail --show-error "${SERVICE_URL}/health"
+
+      - name: Setup Node.js
+        if: ${{ inputs.deploy_netlify }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: DSL_CHAT_BOT/frontend/package-lock.json
+
+      - name: Build frontend for Netlify
+        if: ${{ inputs.deploy_netlify }}
+        working-directory: DSL_CHAT_BOT/frontend
+        env:
+          REQUIRE_RUNTIME_API_URL: "true"
+        run: |
+          set -euo pipefail
+          export REACT_APP_API_URL="${SERVICE_URL}"
+          npm ci
+          npm run build
+          npm run write-runtime-config
+
+      - name: Deploy frontend to Netlify
+        if: ${{ inputs.deploy_netlify }}
+        working-directory: DSL_CHAT_BOT/frontend
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NETLIFY_AUTH_TOKEN}" ] || [ -z "${NETLIFY_SITE_ID}" ]; then
+            echo "::error ::NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID GitHub secrets are required for Netlify deploy."
+            exit 1
+          fi
+
+          npx --yes netlify-cli deploy \
+            --prod \
+            --dir build \
+            --functions netlify/functions \
+            --site "${NETLIFY_SITE_ID}" \
+            --auth "${NETLIFY_AUTH_TOKEN}"
