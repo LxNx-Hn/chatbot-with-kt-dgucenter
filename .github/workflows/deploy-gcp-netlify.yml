@@ -30,6 +30,11 @@ on:
         required: true
         type: boolean
         default: true
+      use_secret_manager:
+        description: "Store runtime secrets in Secret Manager instead of Cloud Run environment variables"
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -93,6 +98,7 @@ jobs:
             --project "${PROJECT_ID}"
 
       - name: Resolve project number
+        if: ${{ inputs.use_secret_manager }}
         run: |
           set -euo pipefail
           PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
@@ -110,6 +116,7 @@ jobs:
           fi
 
       - name: Upsert Secret Manager values
+        if: ${{ inputs.use_secret_manager }}
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           SERVICE_KEY: ${{ secrets.SERVICE_KEY }}
@@ -157,6 +164,7 @@ jobs:
           echo "CLOUD_RUN_SECRET_MOUNTS=${CLOUD_RUN_SECRET_MOUNTS}" >> "${GITHUB_ENV}"
 
       - name: Grant Cloud Run runtime access to secrets
+        if: ${{ inputs.use_secret_manager }}
         run: |
           set -euo pipefail
           RUNTIME_SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
@@ -176,22 +184,56 @@ jobs:
           docker push "${IMAGE}"
 
       - name: Deploy Cloud Run gateway
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          SERVICE_KEY: ${{ secrets.SERVICE_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          ALLOW_MISSING_NIM: ${{ inputs.allow_missing_nim }}
+          USE_SECRET_MANAGER: ${{ inputs.use_secret_manager }}
         run: |
           set -euo pipefail
-          gcloud run deploy "${SERVICE_NAME}" \
-            --image "${IMAGE}" \
-            --region "${REGION}" \
-            --platform managed \
-            --allow-unauthenticated \
-            --port 8000 \
-            --cpu 1 \
-            --memory 512Mi \
-            --min-instances 0 \
-            --max-instances 2 \
-            --timeout 120 \
-            --set-env-vars "^|^MODEL_PROVIDER=nim|RETRIEVAL_PROVIDER=keyword|NIM_BASE_URL=${NIM_BASE_URL}|NIM_MODEL=${NIM_MODEL}|KEYWORD_EMBEDDING_DIMENSIONS=512|CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS}" \
-            --set-secrets "${CLOUD_RUN_SECRET_MOUNTS}" \
+
+          RUNTIME_ENV="MODEL_PROVIDER=nim|RETRIEVAL_PROVIDER=keyword|NIM_BASE_URL=${NIM_BASE_URL}|NIM_MODEL=${NIM_MODEL}|KEYWORD_EMBEDDING_DIMENSIONS=512|CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS}"
+          DEPLOY_ARGS=(
+            "${SERVICE_NAME}"
+            --image "${IMAGE}"
+            --region "${REGION}"
+            --platform managed
+            --allow-unauthenticated
+            --port 8000
+            --cpu 1
+            --memory 512Mi
+            --min-instances 0
+            --max-instances 2
+            --timeout 120
             --project "${PROJECT_ID}"
+          )
+
+          if [ "${USE_SECRET_MANAGER}" = "true" ]; then
+            DEPLOY_ARGS+=(--set-env-vars "^|^${RUNTIME_ENV}")
+            DEPLOY_ARGS+=(--set-secrets "${CLOUD_RUN_SECRET_MOUNTS}")
+          else
+            for name in SERVICE_KEY NAVER_CLIENT_ID NAVER_CLIENT_SECRET; do
+              if [ -z "${!name}" ]; then
+                echo "::error ::GitHub secret ${name} is required."
+                exit 1
+              fi
+            done
+
+            RUNTIME_ENV="${RUNTIME_ENV}|SERVICE_KEY=${SERVICE_KEY}|NAVER_CLIENT_ID=${NAVER_CLIENT_ID}|NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}"
+            if [ -n "${NVIDIA_API_KEY}" ]; then
+              RUNTIME_ENV="NVIDIA_API_KEY=${NVIDIA_API_KEY}|${RUNTIME_ENV}"
+            elif [ "${ALLOW_MISSING_NIM}" = "true" ]; then
+              echo "::warning ::NVIDIA_API_KEY is not set. Deploying infrastructure only; chat generation will return a 503 configuration error."
+            else
+              echo "::error ::GitHub secret NVIDIA_API_KEY is required unless allow_missing_nim is true."
+              exit 1
+            fi
+            DEPLOY_ARGS+=(--set-env-vars "^|^${RUNTIME_ENV}")
+          fi
+
+          gcloud run deploy "${DEPLOY_ARGS[@]}"
 
           SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \
             --region "${REGION}" \
