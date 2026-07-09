@@ -117,37 +117,12 @@ jobs:
               --project "${PROJECT_ID}" >/dev/null
           }
 
-          upsert_optional_secret() {
-            local name="$1"
-            local value="$2"
-
-            if ! gcloud secrets describe "${name}" --project "${PROJECT_ID}" >/dev/null 2>&1; then
-              gcloud secrets create "${name}" \
-                --replication-policy=automatic \
-                --project "${PROJECT_ID}"
-            fi
-
-            printf "%s" "${value}" | gcloud secrets versions add "${name}" \
-              --data-file=- \
-              --project "${PROJECT_ID}" >/dev/null
-          }
-
           upsert_required_secret "NVIDIA_API_KEY" "${NVIDIA_API_KEY}"
           upsert_required_secret "SERVICE_KEY" "${SERVICE_KEY}"
+          upsert_required_secret "NAVER_CLIENT_ID" "${NAVER_CLIENT_ID}"
+          upsert_required_secret "NAVER_CLIENT_SECRET" "${NAVER_CLIENT_SECRET}"
 
-          CLOUD_RUN_SECRET_MOUNTS="NVIDIA_API_KEY=NVIDIA_API_KEY:latest,SERVICE_KEY=SERVICE_KEY:latest"
-          if [ -n "${NAVER_CLIENT_ID}" ] || [ -n "${NAVER_CLIENT_SECRET}" ]; then
-            if [ -z "${NAVER_CLIENT_ID}" ] || [ -z "${NAVER_CLIENT_SECRET}" ]; then
-              echo "::error ::NAVER_CLIENT_ID and NAVER_CLIENT_SECRET must be provided together when enabling trend analysis."
-              exit 1
-            fi
-
-            upsert_optional_secret "NAVER_CLIENT_ID" "${NAVER_CLIENT_ID}"
-            upsert_optional_secret "NAVER_CLIENT_SECRET" "${NAVER_CLIENT_SECRET}"
-            CLOUD_RUN_SECRET_MOUNTS="${CLOUD_RUN_SECRET_MOUNTS},NAVER_CLIENT_ID=NAVER_CLIENT_ID:latest,NAVER_CLIENT_SECRET=NAVER_CLIENT_SECRET:latest"
-          else
-            echo "Naver DataLab secrets were not provided. Trend analysis will return an explicit configuration error if used."
-          fi
+          CLOUD_RUN_SECRET_MOUNTS="NVIDIA_API_KEY=NVIDIA_API_KEY:latest,SERVICE_KEY=SERVICE_KEY:latest,NAVER_CLIENT_ID=NAVER_CLIENT_ID:latest,NAVER_CLIENT_SECRET=NAVER_CLIENT_SECRET:latest"
 
           echo "CLOUD_RUN_SECRET_MOUNTS=${CLOUD_RUN_SECRET_MOUNTS}" >> "${GITHUB_ENV}"
 
