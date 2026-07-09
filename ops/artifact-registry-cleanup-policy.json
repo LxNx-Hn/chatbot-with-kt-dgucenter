@@ -1,0 +1,21 @@
+[
+  {
+    "name": "delete-builds-after-one-day",
+    "action": {
+      "type": "Delete"
+    },
+    "condition": {
+      "tagState": "any",
+      "olderThan": "1d"
+    }
+  },
+  {
+    "name": "keep-three-recent-builds",
+    "action": {
+      "type": "Keep"
+    },
+    "mostRecentVersions": {
+      "keepCount": 3
+    }
+  }
+]

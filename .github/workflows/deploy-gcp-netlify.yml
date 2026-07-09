@@ -42,6 +42,7 @@ permissions:
 env:
   BACKEND_DIR: DSL_CHAT_BOT/backend
   FRONTEND_DIR: DSL_CHAT_BOT/frontend
+  ARTIFACT_CLEANUP_POLICY: ops/artifact-registry-cleanup-policy.json
   NIM_BASE_URL: https://integrate.api.nvidia.com/v1
   NIM_MODEL: meta/llama-3.1-8b-instruct
   CORS_ALLOW_ORIGINS: https://dgu-chat-bot.netlify.app,https://lxnx-hn.github.io
@@ -114,6 +115,15 @@ jobs:
               --description "DGU chatbot lightweight Cloud Run images" \
               --project "${PROJECT_ID}"
           fi
+
+      - name: Apply Artifact Registry cleanup policy
+        run: |
+          set -euo pipefail
+          gcloud artifacts repositories set-cleanup-policies "${ARTIFACT_REPO}" \
+            --project="${PROJECT_ID}" \
+            --location="${REGION}" \
+            --policy="${ARTIFACT_CLEANUP_POLICY}" \
+            --no-dry-run
 
       - name: Upsert Secret Manager values
         if: ${{ inputs.use_secret_manager }}
@@ -206,6 +216,7 @@ jobs:
             --memory 512Mi
             --min-instances 0
             --max-instances 2
+            --concurrency 20
             --timeout 120
             --project "${PROJECT_ID}"
           )
