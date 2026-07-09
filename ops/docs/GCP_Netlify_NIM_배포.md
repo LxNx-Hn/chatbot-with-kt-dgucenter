@@ -75,6 +75,9 @@
 | `service_name` | `dgu-nim-gateway` |
 | `artifact_repo` | `dgu-chatbot` |
 | `deploy_netlify` | `true` |
+| `allow_missing_nim` | `false` |
+
+`NVIDIA_API_KEY` 없이 인프라만 먼저 확인해야 할 때는 `allow_missing_nim=true`로 실행할 수 있다. 이 경우 Cloud Run `/health`와 Netlify 배포는 확인할 수 있지만, 실제 채팅 답변 생성은 `NVIDIA_API_KEY`가 들어가기 전까지 503 설정 오류를 반환한다.
 
 ## 백엔드 런타임 설정
 

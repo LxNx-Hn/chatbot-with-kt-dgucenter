@@ -20,6 +20,11 @@ on:
         required: true
         type: boolean
         default: true
+      allow_missing_nim:
+        description: "Deploy without NVIDIA_API_KEY for non-LLM infrastructure checks"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -100,6 +105,7 @@ jobs:
           SERVICE_KEY: ${{ secrets.SERVICE_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          ALLOW_MISSING_NIM: ${{ inputs.allow_missing_nim }}
         run: |
           set -euo pipefail
 
@@ -123,12 +129,20 @@ jobs:
               --project "${PROJECT_ID}" >/dev/null
           }
 
-          upsert_required_secret "NVIDIA_API_KEY" "${NVIDIA_API_KEY}"
           upsert_required_secret "SERVICE_KEY" "${SERVICE_KEY}"
           upsert_required_secret "NAVER_CLIENT_ID" "${NAVER_CLIENT_ID}"
           upsert_required_secret "NAVER_CLIENT_SECRET" "${NAVER_CLIENT_SECRET}"
 
-          CLOUD_RUN_SECRET_MOUNTS="NVIDIA_API_KEY=NVIDIA_API_KEY:latest,SERVICE_KEY=SERVICE_KEY:latest,NAVER_CLIENT_ID=NAVER_CLIENT_ID:latest,NAVER_CLIENT_SECRET=NAVER_CLIENT_SECRET:latest"
+          CLOUD_RUN_SECRET_MOUNTS="SERVICE_KEY=SERVICE_KEY:latest,NAVER_CLIENT_ID=NAVER_CLIENT_ID:latest,NAVER_CLIENT_SECRET=NAVER_CLIENT_SECRET:latest"
+          if [ -n "${NVIDIA_API_KEY}" ]; then
+            upsert_required_secret "NVIDIA_API_KEY" "${NVIDIA_API_KEY}"
+            CLOUD_RUN_SECRET_MOUNTS="NVIDIA_API_KEY=NVIDIA_API_KEY:latest,${CLOUD_RUN_SECRET_MOUNTS}"
+          elif [ "${ALLOW_MISSING_NIM}" = "true" ]; then
+            echo "::warning ::NVIDIA_API_KEY is not set. Deploying infrastructure only; chat generation will return a 503 configuration error."
+          else
+            echo "::error ::GitHub secret NVIDIA_API_KEY is required unless allow_missing_nim is true."
+            exit 1
+          fi
 
           echo "CLOUD_RUN_SECRET_MOUNTS=${CLOUD_RUN_SECRET_MOUNTS}" >> "${GITHUB_ENV}"
 
