@@ -33,6 +33,11 @@ venv.bak/
 # Environment variables
 .env
 .env.local
+*.local.env
+
+# Local deployment secrets
+ops/deploy-secrets.local.env
+ops/deploy-secrets.*.local.env
 
 # API keys and sensitive config files
 **/config/api_keys.py
@@ -53,6 +58,14 @@ logs/
 node_modules/
 **/node_modules/
 DSL_CHAT_BOT/frontend/build/
+
+# Contest-only local artifacts
+output/
+contest_form_source/
+ops/docs/GCP_Netlify_NIM_배포.md
+*공모전*신청서*
+*참가신청서*
+*contest-submission*.zip
 
 # IDE
 .vscode/
